@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Datasets
+data/
+*.csv
+*.zip
+
+# Machine learning models
+models/*.joblib
+
+# Streamlit
+.streamlit/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
