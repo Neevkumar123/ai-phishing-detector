@@ -16,6 +16,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from predictor import predict_url
+from file_scanner import scan_file
 
 # ============================================================
 # PAGE CONFIG
@@ -493,6 +494,150 @@ else:
         """,
         unsafe_allow_html=True,
     )
+
+
+# ============================================================
+# LOCAL FILE SCANNER
+# ============================================================
+
+st.markdown("---")
+
+st.markdown(
+    """
+    <div class="section-card">
+        <div class="section-title">📁 Local File Scanner</div>
+        <div class="small-note">
+            Analyze a local file using safe static characteristics.
+            The selected file is read as data only and is never executed.
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+uploaded_file = st.file_uploader(
+    "Choose a file to scan",
+    type=None,
+    help="Select a local file. The scanner performs static analysis only.",
+)
+
+if uploaded_file is not None:
+
+    st.write(
+        f"**Selected file:** `{uploaded_file.name}` "
+        f"({uploaded_file.size / (1024 * 1024):.2f} MB)"
+    )
+
+    scan_button = st.button(
+        "🛡️ Scan File",
+        type="primary",
+        use_container_width=False,
+    )
+
+    if scan_button:
+
+        temp_dir = PROJECT_ROOT / ".scanner_temp"
+        temp_dir.mkdir(exist_ok=True)
+
+        temp_file = temp_dir / uploaded_file.name
+
+        try:
+            # Save a temporary copy for static analysis only.
+            # The file is never executed.
+            temp_file.write_bytes(uploaded_file.getbuffer())
+
+            file_result = scan_file(temp_file)
+
+            risk_score = int(file_result["risk_score"])
+            risk_level = file_result["risk_level"]
+
+            st.markdown("### File Scan Result")
+
+            if risk_level == "HIGH":
+                st.error(
+                    f"🚨 HIGH RISK — Risk Score: {risk_score}/100"
+                )
+
+            elif risk_level == "MEDIUM":
+                st.warning(
+                    f"⚠️ MEDIUM RISK — Risk Score: {risk_score}/100"
+                )
+
+            else:
+                st.success(
+                    f"✅ LOW RISK — Risk Score: {risk_score}/100"
+                )
+
+            file_col1, file_col2, file_col3 = st.columns(3)
+
+            with file_col1:
+                st.metric("Risk Score", f"{risk_score}/100")
+
+            with file_col2:
+                st.metric("Risk Level", risk_level)
+
+            with file_col3:
+                st.metric("Entropy", f'{file_result["entropy"]:.4f}')
+
+            st.progress(risk_score / 100)
+
+            st.markdown("### 🔐 SHA-256 Hash")
+            st.code(file_result["sha256"])
+
+            st.markdown("### 🔬 Static File Features")
+
+            feature_display = pd.DataFrame(
+                {
+                    "Feature": [
+                        "File Name",
+                        "Extension",
+                        "File Size",
+                        "SHA-256",
+                        "Entropy",
+                        "Suspicious Extension",
+                        "High Entropy",
+                    ],
+                    "Value": [
+                        file_result["file_name"],
+                        file_result["extension"],
+                        f'{file_result["file_size_mb"]:.2f} MB',
+                        file_result["sha256"],
+                        file_result["entropy"],
+                        "Yes" if file_result["suspicious_extension"] else "No",
+                        "Yes" if file_result["high_entropy"] else "No",
+                    ],
+                }
+            )
+
+            st.dataframe(
+                feature_display,
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            st.markdown("### 📝 Detection Reasons")
+
+            for reason in file_result["reasons"]:
+                st.write(f"• {reason}")
+
+            st.warning(
+                "This is a basic academic static file scanner. "
+                "A LOW risk result does not prove that a file is safe, "
+                "and a HIGH risk result does not by itself prove that "
+                "a file is malware. Do not execute suspicious files."
+            )
+
+        except Exception as error:
+            st.error("The file could not be scanned.")
+            st.exception(error)
+
+        finally:
+            try:
+                if temp_file.exists():
+                    temp_file.unlink()
+            except Exception:
+                pass
+
 
 st.markdown(
     """
